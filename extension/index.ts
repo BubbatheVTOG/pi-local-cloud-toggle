@@ -96,14 +96,18 @@ export default function localCloudToggle(pi: ExtensionAPI) {
       return;
     }
     if (!(await compactBeforeLocal(ctx, local))) return;
+    // Pi emits model_select synchronously/asynchronously during setModel().
+    // Mark the transition before changing models so that the local model is
+    // never mistaken for the cloud model we need to restore later.
+    mode = "local";
     if (!(await pi.setModel(local))) {
+      mode = "cloud";
       ctx.ui.notify(
         `local: Pi could not select ${config.localModel}; check its provider authentication`,
         "error",
       );
       return;
     }
-    mode = "local";
     publishStatus(ctx, config);
     ctx.ui.notify(`model mode: LOCAL (${config.localModel})`, "info");
   };
