@@ -23,6 +23,8 @@ function parseModelRef(value: string): ModelRef {
 export default function localCloudToggle(pi: ExtensionAPI) {
   let mode: Mode = "cloud";
   let cloud: ModelRef | undefined;
+  let startupCloud: ModelRef | undefined;
+  let sessionStarted = false;
 
   const configFor = (ctx: ExtensionContext) =>
     resolveConfig({ cwd: ctx.cwd, projectTrusted: ctx.isProjectTrusted() });
@@ -95,6 +97,14 @@ export default function localCloudToggle(pi: ExtensionAPI) {
       );
       return;
     }
+    // Capture the model that is actually active now. Startup model selection
+    // can happen after session_start, so the initial snapshot may be stale.
+    if (
+      ctx.model &&
+      (ctx.model.provider !== local.provider || ctx.model.id !== local.id)
+    ) {
+      cloud = modelRef(ctx.model);
+    }
     if (!(await compactBeforeLocal(ctx, local))) return;
     // Pi emits model_select synchronously/asynchronously during setModel().
     // Mark the transition before changing models so that the local model is
@@ -149,13 +159,18 @@ export default function localCloudToggle(pi: ExtensionAPI) {
 
   pi.on("session_start", (_event, ctx) => {
     mode = "cloud";
-    cloud = ctx.model ? modelRef(ctx.model) : undefined;
+    cloud = startupCloud ?? (ctx.model ? modelRef(ctx.model) : undefined);
+    startupCloud = undefined;
+    sessionStarted = true;
     publishStatus(ctx, configFor(ctx));
   });
 
   pi.on("model_select", (event, ctx) => {
-    if (mode === "cloud") {
-      cloud = rememberCloud({ mode, cloud }, modelRef(event.model)).cloud;
+    const selected = modelRef(event.model);
+    if (!sessionStarted) {
+      startupCloud = selected;
+    } else if (mode === "cloud") {
+      cloud = rememberCloud({ mode, cloud }, selected).cloud;
     }
     publishStatus(ctx, configFor(ctx));
   });
