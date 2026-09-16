@@ -4,12 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { resolveConfig, type ToggleConfig } from "./config";
-import {
-  modelRef,
-  rememberCloud,
-  type ModelRef,
-  type Mode,
-} from "./state";
+import { modelRef, rememberCloud, type ModelRef, type Mode } from "./state";
 
 function findModel(
   ctx: ExtensionContext,
@@ -133,7 +128,10 @@ export default function localCloudToggle(pi: ExtensionAPI) {
     const config = configFor(ctx);
     if (!config.enabled) {
       publishStatus(ctx, config);
-      ctx.ui.notify("local: model toggle is disabled in configuration", "warning");
+      ctx.ui.notify(
+        "local: model toggle is disabled in configuration",
+        "warning",
+      );
       return;
     }
     if (mode === "cloud") await switchLocal(ctx, config);
@@ -158,7 +156,8 @@ export default function localCloudToggle(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("local", {
-    description: "Toggle between an existing local model and the previous cloud model",
+    description:
+      "Toggle between an existing local model and the previous cloud model",
     handler: async (args, ctx) => {
       const config = configFor(ctx);
       const subcommand = (args || "toggle").trim().toLowerCase();
@@ -170,9 +169,15 @@ export default function localCloudToggle(pi: ExtensionAPI) {
         );
         return;
       }
-      if (subcommand === "on" || (subcommand === "toggle" && mode === "cloud")) {
+      if (
+        subcommand === "on" ||
+        (subcommand === "toggle" && mode === "cloud")
+      ) {
         if (!config.enabled) {
-          ctx.ui.notify("local: model toggle is disabled in configuration", "warning");
+          ctx.ui.notify(
+            "local: model toggle is disabled in configuration",
+            "warning",
+          );
           return;
         }
         await switchLocal(ctx, config);
