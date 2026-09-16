@@ -1,0 +1,32 @@
+# pi-local-cloud-toggle
+
+A small Pi extension that toggles between an existing local model and the previously selected cloud model. It follows the command/status pattern used by [agent-voice](https://github.com/BubbatheVTOG/agent-voice).
+
+## Usage
+
+- `/local` or `/local toggle` — switch modes
+- `/local on` — select the configured local model
+- `/local off` — restore the previous cloud model
+- `/local status` — show the active mode and model references
+- `Ctrl+Shift+L` — toggle modes
+
+The footer status displays `LOCAL` or `CLOUD`.
+
+## Configuration
+
+Both models must already exist in Pi's model list. Configure only the local model reference:
+
+```json
+{
+  "modelToggle": {
+    "enabled": true,
+    "localModel": "vllm/bubba"
+  }
+}
+```
+
+The extension starts in cloud mode and remembers the currently selected cloud model in memory. Turning local mode off restores that model. There is no duplicate provider configuration, endpoint configuration, environment variable, or state file.
+
+Before switching, the extension compares the current context size with the local model's registered context window. If the context is too large, it warns before allowing the switch and compacts on the current cloud model first. When `pi-vcc` is not installed, the warning explicitly says that Pi's normal compaction will run on the cloud model. Declining the warning or a failed compaction leaves the session on cloud.
+
+This first version does not automatically fall back to cloud after a local request failure.

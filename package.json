@@ -1,0 +1,24 @@
+{
+  "name": "pi-local-cloud-toggle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Toggle Pi between a local vLLM model and the previously selected cloud model.",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "pi": {
+    "extensions": [
+      "./extension/index.ts"
+    ]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
+    "@earendil-works/pi-coding-agent": "^0.85.1",
+    "@earendil-works/pi-tui": "^0.85.1",
+    "@types/node": "^22.20.2",
+    "typescript": "^7.0.2"
+  }
+}
