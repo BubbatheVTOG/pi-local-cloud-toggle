@@ -25,13 +25,14 @@ export default function localCloudToggle(pi: ExtensionAPI) {
   let cloud: ModelRef | undefined;
   let startupCloud: ModelRef | undefined;
   let sessionStarted = false;
+  let controlsRegistered = false;
 
   const configFor = (ctx: ExtensionContext) =>
     resolveConfig({ cwd: ctx.cwd, projectTrusted: ctx.isProjectTrusted() });
 
   const publishStatus = (ctx: ExtensionContext, config: ToggleConfig) => {
     const localModel = findModel(ctx, parseModelRef(config.localModel));
-    if (!localModel) {
+    if (!config.enabled || !localModel) {
       ctx.ui.setStatus("pi-local-cloud", undefined);
       return;
     }
@@ -162,7 +163,16 @@ export default function localCloudToggle(pi: ExtensionAPI) {
     cloud = startupCloud ?? (ctx.model ? modelRef(ctx.model) : undefined);
     startupCloud = undefined;
     sessionStarted = true;
-    publishStatus(ctx, configFor(ctx));
+    const config = configFor(ctx);
+    if (
+      config.enabled &&
+      findModel(ctx, parseModelRef(config.localModel)) &&
+      !controlsRegistered
+    ) {
+      registerControls();
+      controlsRegistered = true;
+    }
+    publishStatus(ctx, config);
   });
 
   pi.on("model_select", (event, ctx) => {
@@ -179,44 +189,46 @@ export default function localCloudToggle(pi: ExtensionAPI) {
     publishStatus(ctx, configFor(ctx));
   });
 
-  pi.registerCommand("local", {
-    description:
-      "Toggle between an existing local model and the previous cloud model",
-    handler: async (args, ctx) => {
-      const config = configFor(ctx);
-      const subcommand = (args || "toggle").trim().toLowerCase();
-      if (subcommand === "status") {
-        publishStatus(ctx, config);
-        ctx.ui.notify(
-          `model mode: ${mode.toUpperCase()}${cloud ? `; cloud=${cloud.provider}/${cloud.id}` : ""}; local=${config.localModel}`,
-          "info",
-        );
-        return;
-      }
-      if (
-        subcommand === "on" ||
-        (subcommand === "toggle" && mode === "cloud")
-      ) {
-        if (!config.enabled) {
+  function registerControls(): void {
+    pi.registerCommand("local", {
+      description:
+        "Toggle between an existing local model and the previous cloud model",
+      handler: async (args, ctx) => {
+        const config = configFor(ctx);
+        const subcommand = (args || "toggle").trim().toLowerCase();
+        if (subcommand === "status") {
+          publishStatus(ctx, config);
           ctx.ui.notify(
-            "local: model toggle is disabled in configuration",
-            "warning",
+            `model mode: ${mode.toUpperCase()}${cloud ? `; cloud=${cloud.provider}/${cloud.id}` : ""}; local=${config.localModel}`,
+            "info",
           );
           return;
         }
-        await switchLocal(ctx, config);
-        return;
-      }
-      if (subcommand === "off" || subcommand === "toggle") {
-        await switchCloud(ctx, config);
-        return;
-      }
-      ctx.ui.notify("local: use /local on|off|status|toggle", "warning");
-    },
-  });
+        if (
+          subcommand === "on" ||
+          (subcommand === "toggle" && mode === "cloud")
+        ) {
+          if (!config.enabled) {
+            ctx.ui.notify(
+              "local: model toggle is disabled in configuration",
+              "warning",
+            );
+            return;
+          }
+          await switchLocal(ctx, config);
+          return;
+        }
+        if (subcommand === "off" || subcommand === "toggle") {
+          await switchCloud(ctx, config);
+          return;
+        }
+        ctx.ui.notify("local: use /local on|off|status|toggle", "warning");
+      },
+    });
 
-  pi.registerShortcut("ctrl+shift+l", {
-    description: "Toggle local/cloud model",
-    handler: toggle,
-  });
+    pi.registerShortcut("ctrl+shift+l", {
+      description: "Toggle local/cloud model",
+      handler: toggle,
+    });
+  }
 }

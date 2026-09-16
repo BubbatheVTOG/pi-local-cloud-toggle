@@ -14,7 +14,14 @@ The footer status displays `LOCAL` or `CLOUD`.
 
 ## Configuration
 
-Both models must already exist in Pi's model list. Configure only the local model reference:
+Both models must already exist in Pi's available model list. At session startup,
+the extension registers `/local` and its shortcut only when enabled and its local
+model is available. Otherwise it hides its footer item and leaves the current
+model unchanged. Reload Pi after enabling the extension or configuring a missing
+model. No endpoint probes, model requests, installation, or service startup run
+as part of this check; registry availability does not prove backend health.
+
+Configure only the local model reference:
 
 ```json
 {
