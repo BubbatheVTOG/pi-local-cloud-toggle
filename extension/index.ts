@@ -28,6 +28,11 @@ export default function localCloudToggle(pi: ExtensionAPI) {
     resolveConfig({ cwd: ctx.cwd, projectTrusted: ctx.isProjectTrusted() });
 
   const publishStatus = (ctx: ExtensionContext, config: ToggleConfig) => {
+    const localModel = findModel(ctx, parseModelRef(config.localModel));
+    if (!localModel) {
+      ctx.ui.setStatus("pi-local-cloud", undefined);
+      return;
+    }
     const label = config.enabled
       ? mode === "local"
         ? "LOCAL"
