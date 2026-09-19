@@ -4,7 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { resolveConfig, type ToggleConfig } from "./config";
-import { modelRef, rememberCloud, type ModelRef, type Mode } from "./state";
+import { modelRef, type ModelRef, type Mode } from "./state";
 
 function findModel(
   ctx: ExtensionContext,
@@ -18,6 +18,10 @@ function findModel(
 function parseModelRef(value: string): ModelRef {
   const slash = value.indexOf("/");
   return { provider: value.slice(0, slash), id: value.slice(slash + 1) };
+}
+
+function sameModel(left: ModelRef | undefined, right: ModelRef): boolean {
+  return left?.provider === right.provider && left.id === right.id;
 }
 
 export default function localCloudToggle(pi: ExtensionAPI) {
@@ -36,11 +40,7 @@ export default function localCloudToggle(pi: ExtensionAPI) {
       ctx.ui.setStatus("pi-local-cloud", undefined);
       return;
     }
-    const label = config.enabled
-      ? mode === "local"
-        ? "LOCAL"
-        : "CLOUD"
-      : "MODEL TOGGLE OFF";
+    const label = mode === "local" ? "LOCAL" : "CLOUD";
     const color =
       !config.enabled || mode === "cloud"
         ? "\u001b[38;2;139;149;167m"
@@ -159,14 +159,25 @@ export default function localCloudToggle(pi: ExtensionAPI) {
   };
 
   pi.on("session_start", (_event, ctx) => {
-    mode = "cloud";
-    cloud = startupCloud ?? (ctx.model ? modelRef(ctx.model) : undefined);
+    const config = configFor(ctx);
+    const localRef = parseModelRef(config.localModel);
+    const active = ctx.model ? modelRef(ctx.model) : startupCloud;
+    const activeIsLocal = sameModel(active, localRef);
+
+    if (activeIsLocal) {
+      mode = "local";
+      cloud = startupCloud && !sameModel(startupCloud, localRef)
+        ? startupCloud
+        : undefined;
+    } else {
+      mode = "cloud";
+      cloud = active;
+    }
     startupCloud = undefined;
     sessionStarted = true;
-    const config = configFor(ctx);
     if (
       config.enabled &&
-      findModel(ctx, parseModelRef(config.localModel)) &&
+      findModel(ctx, localRef) &&
       !controlsRegistered
     ) {
       registerControls();
@@ -177,12 +188,18 @@ export default function localCloudToggle(pi: ExtensionAPI) {
 
   pi.on("model_select", (event, ctx) => {
     const selected = modelRef(event.model);
+    const config = configFor(ctx);
+    const selectedIsLocal = sameModel(selected, parseModelRef(config.localModel));
+
     if (!sessionStarted) {
       startupCloud = selected;
-    } else if (mode === "cloud") {
-      cloud = rememberCloud({ mode, cloud }, selected).cloud;
+    } else if (selectedIsLocal) {
+      mode = "local";
+    } else {
+      mode = "cloud";
+      cloud = selected;
     }
-    publishStatus(ctx, configFor(ctx));
+    publishStatus(ctx, config);
   });
 
   pi.on("before_agent_start", (_event, ctx) => {

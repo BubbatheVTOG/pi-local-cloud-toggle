@@ -5,19 +5,29 @@ import test from "node:test";
 import vm from "node:vm";
 import * as state from "../extension/state.ts";
 
-async function harness({ enabled = true, localAvailable = true } = {}) {
+async function harness({
+  enabled = true,
+  localAvailable = true,
+  initialModel = "cloud",
+  setModelSucceeds = true,
+} = {}) {
   const handlers = new Map();
   const commands = new Map();
   const shortcuts = new Map();
   const statuses = new Map();
   const selections = [];
-  const local = { provider: "vllm", id: "bubba", contextWindow: 256000 };
+  const local = { provider: "josh", id: "bubba", contextWindow: 128000 };
   const cloud = { provider: "remote", id: "current", contextWindow: 256000 };
-  let models = localAvailable ? [cloud, local] : [cloud];
+  const alternateCloud = {
+    provider: "remote",
+    id: "alternate",
+    contextWindow: 256000,
+  };
+  let models = localAvailable ? [cloud, alternateCloud, local] : [cloud];
   const ctx = {
     cwd: "/fixture",
     hasUI: true,
-    model: cloud,
+    model: initialModel === "local" ? local : cloud,
     isProjectTrusted: () => false,
     modelRegistry: { getAvailable: () => models },
     getContextUsage: () => ({ tokens: 100 }),
@@ -38,6 +48,7 @@ async function harness({ enabled = true, localAvailable = true } = {}) {
     getCommands: () => [],
     setModel: async (model) => {
       selections.push(model);
+      if (!setModelSucceeds) return false;
       ctx.model = model;
       await emit("model_select", { model });
       return true;
@@ -45,7 +56,7 @@ async function harness({ enabled = true, localAvailable = true } = {}) {
   };
   const exportsByPath = {
     "./config": {
-      resolveConfig: () => ({ enabled, localModel: "vllm/bubba" }),
+      resolveConfig: () => ({ enabled, localModel: "josh/bubba" }),
     },
     "./state": state,
   };
@@ -78,10 +89,15 @@ async function harness({ enabled = true, localAvailable = true } = {}) {
     selections,
     local,
     cloud,
+    alternateCloud,
     ctx,
     emit,
+    select: async (model) => {
+      ctx.model = model;
+      await emit("model_select", { model });
+    },
     removeLocal: () => {
-      models = [cloud];
+      models = [cloud, alternateCloud];
     },
   };
 }
@@ -112,9 +128,40 @@ test("available local model registers controls and restores the actual cloud mod
   assert.match(h.statuses.get("pi-local-cloud"), /CLOUD/);
   await h.commands.get("local").handler("on", h.ctx);
   assert.equal(h.ctx.model, h.local);
+  assert.match(h.statuses.get("pi-local-cloud"), /LOCAL/);
   await h.commands.get("local").handler("off", h.ctx);
   assert.equal(h.ctx.model, h.cloud);
+  assert.match(h.statuses.get("pi-local-cloud"), /CLOUD/);
   assert.deepEqual(h.selections, [h.local, h.cloud]);
+});
+
+test("startup on the local model is reported as LOCAL", async () => {
+  const h = await harness({ initialModel: "local" });
+  await h.emit("session_start");
+  assert.match(h.statuses.get("pi-local-cloud"), /LOCAL/);
+  await h.commands.get("local").handler("off", h.ctx);
+  assert.equal(h.selections.length, 0);
+});
+
+test("manually selecting a cloud model enters CLOUD and remembers it", async () => {
+  const h = await harness();
+  await h.emit("session_start");
+  await h.commands.get("local").handler("on", h.ctx);
+  await h.select(h.alternateCloud);
+  assert.match(h.statuses.get("pi-local-cloud"), /CLOUD/);
+  await h.commands.get("local").handler("on", h.ctx);
+  assert.equal(h.ctx.model, h.local);
+  await h.commands.get("local").handler("off", h.ctx);
+  assert.equal(h.ctx.model, h.alternateCloud);
+});
+
+test("a failed local switch stays in CLOUD mode without changing models", async () => {
+  const h = await harness({ setModelSucceeds: false });
+  await h.emit("session_start");
+  await h.commands.get("local").handler("on", h.ctx);
+  assert.equal(h.ctx.model, h.cloud);
+  assert.match(h.statuses.get("pi-local-cloud"), /CLOUD/);
+  assert.deepEqual(h.selections, [h.local]);
 });
 
 test("a disappearing prerequisite cannot trigger compaction or change models", async () => {

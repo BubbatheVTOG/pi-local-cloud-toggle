@@ -1,6 +1,6 @@
 # pi-local-cloud-toggle
 
-A small Pi extension that toggles between an existing local model and the previously selected cloud model. It follows the command/status pattern used by [agent-voice](https://github.com/BubbatheVTOG/agent-voice).
+A small Pi extension that toggles the entire inherited Pi/subagent fleet between an existing local model and the previously selected cloud model. It follows the command/status pattern used by [agent-voice](https://github.com/BubbatheVTOG/agent-voice).
 
 ## Usage
 
@@ -27,13 +27,13 @@ Configure only the local model reference:
 {
   "modelToggle": {
     "enabled": true,
-    "localModel": "vllm/bubba"
+    "localModel": "josh/bubba"
   }
 }
 ```
 
-The extension starts in cloud mode and remembers the currently selected cloud model in memory. Turning local mode off restores that model. There is no duplicate provider configuration, endpoint configuration, environment variable, or state file.
+The extension classifies the active model at startup: the configured local model starts in LOCAL mode, and every other model starts in CLOUD mode. Selecting the local model enters LOCAL; selecting any other model enters CLOUD and remembers it. Turning local mode off restores the remembered cloud model. The memory is session-only: there is no duplicate provider configuration, endpoint configuration, environment variable, or state file.
 
 Before switching, the extension compares the current context size with the local model's registered context window. If the context is too large, it warns before allowing the switch and compacts on the current cloud model first. When `pi-vcc` is not installed, the warning explicitly says that Pi's normal compaction will run on the cloud model. Declining the warning or a failed compaction leaves the session on cloud.
 
-This first version does not automatically fall back to cloud after a local request failure.
+The extension does not automatically fall back to cloud after a local request failure. A failed switch or request remains visible as an error rather than silently changing the fleet's provider.

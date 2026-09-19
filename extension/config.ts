@@ -10,7 +10,7 @@ export interface ToggleConfig {
 
 export const DEFAULTS: ToggleConfig = {
   enabled: true,
-  localModel: "vllm/bubba",
+  localModel: "josh/bubba",
 };
 
 type Raw = { enabled?: unknown; localModel?: unknown };
