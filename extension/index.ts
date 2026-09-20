@@ -4,7 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { resolveConfig, type ToggleConfig } from "./config";
-import { modelRef, type ModelRef, type Mode } from "./state";
+import { modelRef, syncSelectedModel, type ModelRef, type Mode } from "./state";
 
 function findModel(
   ctx: ExtensionContext,
@@ -20,14 +20,10 @@ function parseModelRef(value: string): ModelRef {
   return { provider: value.slice(0, slash), id: value.slice(slash + 1) };
 }
 
-function sameModel(left: ModelRef | undefined, right: ModelRef): boolean {
-  return left?.provider === right.provider && left.id === right.id;
-}
-
 export default function localCloudToggle(pi: ExtensionAPI) {
   let mode: Mode = "cloud";
   let cloud: ModelRef | undefined;
-  let startupCloud: ModelRef | undefined;
+  let startupSelection: ModelRef | undefined;
   let sessionStarted = false;
   let controlsRegistered = false;
 
@@ -161,19 +157,18 @@ export default function localCloudToggle(pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     const config = configFor(ctx);
     const localRef = parseModelRef(config.localModel);
-    const active = ctx.model ? modelRef(ctx.model) : startupCloud;
-    const activeIsLocal = sameModel(active, localRef);
-
-    if (activeIsLocal) {
-      mode = "local";
-      cloud = startupCloud && !sameModel(startupCloud, localRef)
-        ? startupCloud
-        : undefined;
-    } else {
-      mode = "cloud";
-      cloud = active;
-    }
-    startupCloud = undefined;
+    const selected =
+      startupSelection ?? (ctx.model ? modelRef(ctx.model) : undefined);
+    const next = selected
+      ? syncSelectedModel(
+          { mode: "cloud", cloud: undefined },
+          selected,
+          localRef,
+        )
+      : { mode: "cloud" as const, cloud: undefined };
+    mode = next.mode;
+    cloud = next.cloud;
+    startupSelection = undefined;
     sessionStarted = true;
     if (
       config.enabled &&
@@ -189,15 +184,16 @@ export default function localCloudToggle(pi: ExtensionAPI) {
   pi.on("model_select", (event, ctx) => {
     const selected = modelRef(event.model);
     const config = configFor(ctx);
-    const selectedIsLocal = sameModel(selected, parseModelRef(config.localModel));
-
     if (!sessionStarted) {
-      startupCloud = selected;
-    } else if (selectedIsLocal) {
-      mode = "local";
+      startupSelection = selected;
     } else {
-      mode = "cloud";
-      cloud = selected;
+      const next = syncSelectedModel(
+        { mode, cloud },
+        selected,
+        parseModelRef(config.localModel),
+      );
+      mode = next.mode;
+      cloud = next.cloud;
     }
     publishStatus(ctx, config);
   });

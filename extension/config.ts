@@ -42,7 +42,10 @@ export function resolveConfig(input: {
 }): ToggleConfig {
   const home = input.homeDir ?? homedir();
   const config = { ...DEFAULTS };
-  apply(config, readBlock(join(home, ".pi", "agent", "settings.json")));
+  apply(
+    config,
+    readBlock(join(home, CONFIG_DIR_NAME, "agent", "settings.json")),
+  );
   if (input.projectTrusted !== false) {
     apply(config, readBlock(join(input.cwd, CONFIG_DIR_NAME, "settings.json")));
   }

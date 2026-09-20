@@ -99,6 +99,10 @@ async function harness({
     removeLocal: () => {
       models = [cloud, alternateCloud];
     },
+    selectManually: async (model) => {
+      ctx.model = model;
+      await emit("model_select", { model });
+    },
   };
 }
 
@@ -172,4 +176,24 @@ test("a disappearing prerequisite cannot trigger compaction or change models", a
   await h.commands.get("local").handler("on", h.ctx);
   assert.equal(h.statuses.get("pi-local-cloud"), undefined);
   assert.deepEqual(h.selections, []);
+});
+
+test("starting on the configured local model reports LOCAL without inventing a cloud model", async () => {
+  const h = await harness({ initialModel: "local" });
+  await h.emit("session_start");
+  assert.match(h.statuses.get("pi-local-cloud"), /LOCAL/);
+  await h.commands.get("local").handler("off", h.ctx);
+  assert.equal(h.ctx.model, h.local);
+  assert.deepEqual(h.selections, []);
+});
+
+test("manual model selection keeps the mode and cloud restore target synchronized", async () => {
+  const h = await harness();
+  await h.emit("session_start");
+  await h.commands.get("local").handler("on", h.ctx);
+  assert.match(h.statuses.get("pi-local-cloud"), /LOCAL/);
+  await h.selectManually(h.cloud);
+  assert.match(h.statuses.get("pi-local-cloud"), /CLOUD/);
+  await h.commands.get("local").handler("on", h.ctx);
+  assert.equal(h.ctx.model, h.local);
 });

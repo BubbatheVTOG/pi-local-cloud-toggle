@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { rememberCloud } from "../extension/state.ts";
+import { rememberCloud, syncSelectedModel } from "../extension/state.ts";
 
 test("remember cloud only while in cloud mode", () => {
   const state = { mode: "cloud", cloud: { provider: "openai", id: "gpt" } };
@@ -15,4 +15,17 @@ test("remember cloud only while in cloud mode", () => {
     ).cloud,
     state.cloud,
   );
+});
+
+test("selected model synchronizes mode without losing the previous cloud", () => {
+  const cloud = { provider: "anthropic", id: "claude" };
+  const local = { provider: "vllm", id: "bubba" };
+  assert.deepEqual(syncSelectedModel({ mode: "cloud", cloud }, local, local), {
+    mode: "local",
+    cloud,
+  });
+  assert.deepEqual(syncSelectedModel({ mode: "local", cloud }, cloud, local), {
+    mode: "cloud",
+    cloud,
+  });
 });
